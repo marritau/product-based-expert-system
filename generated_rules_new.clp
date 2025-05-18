@@ -10975,44 +10975,35 @@ AНА ≤ 5 %"))
 после любой косметики"))
 )
 
-;; Правило для создания финального результата "-1" и подсчёта
 (defrule set_final_minus_1
+    (declare (salience -10))
     (result "-1")
     =>
-    (bind ?*count_neg1* (+ ?*count_neg1* 1))  ;; Увеличиваем счётчик -1
-    (assert (final_result "-1"))  ;; Создаём факт "final_result"
-
-    ;; Создание факта "степень" на основе подсчёта -1 (счётчик)
-    (assert (degree ?*count_neg1*))  ;; Факт "degree" с числовым значением счётчика -1
-
-    (halt)  ;; Завершаем выполнение
+    (bind ?*count_neg1* (+ ?*count_neg1* 1))
+    (assert (final_result "-1"))
+    (assert (degree ?*count_neg1*))
+    (halt)
 )
 
-;; Правило для создания финального результата "0" и подсчёта
 (defrule set_final_0
+    (declare (salience -10))
     (not (result "-1"))
     (result "0")
     =>
-    (bind ?*count_0* (+ ?*count_0* 1))  ;; Увеличиваем счётчик 0
-    (assert (final_result "0"))  ;; Создаём факт "final_result"
-
-    ;; Создание факта "степень" на основе подсчёта 0 (счётчик)
-    (assert (degree ?*count_0*))  ;; Факт "degree" с числовым значением счётчика 0
-
-    (halt)  ;; Завершаем выполнение
+    (bind ?*count_0* (+ ?*count_0* 1))
+    (assert (final_result "0"))
+    (assert (degree ?*count_0*))
+    (halt)
 )
 
-;; Правило для создания финального результата "1" и подсчёта
 (defrule set_final_1
+    (declare (salience -10))
     (not (result "-1"))
     (not (result "0"))
     (result "1")
     =>
-    (bind ?*count_1* (+ ?*count_1* 1))  ;; Увеличиваем счётчик 1
-    (assert (final_result "1"))  ;; Создаём факт "final_result"
-
-    ;; Создание факта "степень" на основе подсчёта 1 (счётчик)
-    (assert (degree ?*count_1*))  ;; Факт "degree" с числовым значением счётчика 1
-
-    (halt)  ;; Завершаем выполнение
+    (bind ?*count_1* (+ ?*count_1* 1))
+    (assert (final_result "1"))
+    (assert (degree ?*count_1*))
+    (halt)
 )
