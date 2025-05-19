@@ -1,16 +1,28 @@
+import sys
 from process_composition import custom_composition
 import sqlite3
 from globals import flags, banned_ingredients, features
 from itertools import combinations
 import subprocess
 import re
+import os
 
-analysis_results = {}
-pairwise_comparison_results = []
-user_comparison_results = []
-banned_results =[]
 
+# analysis_results = {}
+# pairwise_comparison_results = []
+# user_comparison_results = []
+# banned_results =[]
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS  # Временная папка PyInstaller
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 def get_composition_data(item_id):
+    # composition_vectors_db_path = resource_path('composition_vectors.db')
+    # conn = sqlite3.connect(composition_vectors_db_path)
     conn = sqlite3.connect('composition_vectors.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM tokenized_table WHERE itemId=?", (item_id,))
@@ -47,6 +59,8 @@ def generate_clips_facts_active( data_1, data_2):
 
 def run_clips_rules_active(facts):
     rules_file = r"generated_rules_new.clp"
+    # rules_file = resource_path('generated_rules_new.clp')
+    # clips_path = resource_path("CLIPSDOS.exe")
     clips_path = r"C:\Program Files\SSS\CLIPS 6.4.2\CLIPSDOS.exe"
 
     process = subprocess.Popen(
@@ -153,6 +167,8 @@ def generate_clips_facts_user(user_survey_data):
 
 def generate_clips_facts_description(item_id):
     conn = sqlite3.connect('description_features.db')
+    # db_path = resource_path('description_features.db')
+    # conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM description_flags WHERE itemId=?", (item_id,))
@@ -175,9 +191,10 @@ def generate_clips_facts_description(item_id):
     return feature_facts
 
 def run_clips_rules(rules_file, *facts_sets):
-    # rules_file = r"user_product_rules.clp"
+    rules_file = r"user_product_rules.clp"
     clips_path = r"C:\Program Files\SSS\CLIPS 6.4.2\CLIPSDOS.exe"
-
+    # clips_path = resource_path("CLIPSDOS.exe")
+    # rules_file_path = resource_path(rules_file)
     process = subprocess.Popen(
         [clips_path],
         stdin=subprocess.PIPE,
@@ -196,6 +213,7 @@ def run_clips_rules(rules_file, *facts_sets):
     # (exit)
     # """.encode("utf-8")
     commands = f'(load "{rules_file}")\n'
+    # commands = f'(load "{rules_file_path}")\n'
     for facts in facts_sets:
         commands += facts + "\n"
     commands += "(run)\n(facts)\n(exit)\n"
@@ -251,6 +269,10 @@ def generate_clips_facts_banned(data):
     return facts
 
 def run_analysis(selected_instruments, custom_ingredients, user_survey_data):
+    analysis_results = {}
+    pairwise_comparison_results = []
+    user_comparison_results = []
+    banned_results = []
     # print("begin", user_survey_data)
     if custom_ingredients:
         # Обработка пользовательских (вручную введённых) средств
@@ -272,6 +294,7 @@ def run_analysis(selected_instruments, custom_ingredients, user_survey_data):
             }
 
     if selected_instruments:
+        # print(selected_instruments)
         for item_id, name in selected_instruments:
             composition, found_flags, banned = get_composition_data(item_id)
 

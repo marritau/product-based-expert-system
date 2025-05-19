@@ -1,8 +1,3 @@
-;; Глобальные переменные для подсчёта результатов
-(defglobal ?*count_neg1* = 0)
-(defglobal ?*count_0* = 0)
-(defglobal ?*count_1* = 0)
-
 (defrule правило_1
     (or
         (and (first_element "Niacinamide 2–5 %") (second_element "Niacinamide 2–5 %"))
@@ -10979,9 +10974,7 @@ AНА ≤ 5 %"))
     (declare (salience -10))
     (result "-1")
     =>
-    (bind ?*count_neg1* (+ ?*count_neg1* 1))
     (assert (final_result "-1"))
-    (assert (degree ?*count_neg1*))
     (halt)
 )
 
@@ -10990,9 +10983,7 @@ AНА ≤ 5 %"))
     (not (result "-1"))
     (result "0")
     =>
-    (bind ?*count_0* (+ ?*count_0* 1))
     (assert (final_result "0"))
-    (assert (degree ?*count_0*))
     (halt)
 )
 
@@ -11002,8 +10993,6 @@ AНА ≤ 5 %"))
     (not (result "0"))
     (result "1")
     =>
-    (bind ?*count_1* (+ ?*count_1* 1))
     (assert (final_result "1"))
-    (assert (degree ?*count_1*))
     (halt)
 )

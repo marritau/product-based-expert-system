@@ -1,14 +1,23 @@
 import re
 import json
 import sqlite3
-
 from deep_translator import GoogleTranslator
 from langdetect import detect, DetectorFactory
 from langdetect.lang_detect_exception import LangDetectException
 from globals import flags, banned_ingredients
 import difflib
+import os
+import sys
 
 DetectorFactory.seed = 42
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS  # Временная папка PyInstaller
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 #по сути код обработки состава из diplom.ipynb
 def is_non_empty(text):
     return bool(text and text.strip())
@@ -59,7 +68,9 @@ def custom_composition(composition):
         translated_tokens.append(translated_token)
 
     try:
-        with open("synonyms_data.json", "r", encoding="utf-8") as f:
+        # with open("synonyms_data.json", "r", encoding="utf-8") as f:
+        file_path = resource_path("synonyms_data.json")
+        with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             synonyms_cache = data.get("synonyms_cache", {})
     except Exception as e:
@@ -112,6 +123,8 @@ def find_allergy(selected_instruments, custom_ingredients, allergy_components):
     if selected_instruments:
         for item_id, name in selected_instruments:
             conn = sqlite3.connect('composition_vectors.db')
+            # db_path = resource_path('composition_vectors.db')
+            # conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute("SELECT composition_tokenized FROM tokenized_table WHERE itemId=?", (item_id,))
             row = cursor.fetchone()
@@ -146,6 +159,8 @@ def find_allergy(selected_instruments, custom_ingredients, allergy_components):
                 translated_tokens.append(translated_token)
             try:
                 with open("synonyms_data.json", "r", encoding="utf-8") as f:
+                # file_path = resource_path("synonyms_data.json")
+                # with open(file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     synonyms_cache = data.get("synonyms_cache", {})
             except Exception as e:

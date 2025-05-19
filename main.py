@@ -4,14 +4,28 @@ from tkinter import messagebox, font
 import customtkinter as ctk
 from analyzer import run_analysis
 from process_composition import find_allergy
+import os
+import json
+import sys
 
 selected_instruments = []
 custom_ingredients = []
 user_survey_data = {}
-allergy_warnings = []
 
+db_user_path = "survey_data.db"
+
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS  # Временная папка PyInstaller
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 def fetch_instruments():
     conn = sqlite3.connect('full_products_database.db')
+    # full_products_db_path = resource_path('composition_vectors.db')
+    # conn = sqlite3.connect(full_products_db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT itemid, name, brand FROM merged_table")
     instruments = cursor.fetchall()
@@ -80,11 +94,32 @@ def add_instrument():
     close_button = ctk.CTkButton(select_window, text="Закрыть", command=select_window.destroy)
     close_button.pack(pady=10)
 
+def remove_instrument_by_name(name_brand, label_widget):
+    global selected_instruments
+
+    label_widget.destroy()
+    # print(selected_instruments)
+    # print(name_brand)
+    # print(custom_ingredients)
+    for i, (itemid, name) in enumerate(selected_instruments):
+        if name == name_brand:
+            del selected_instruments[i]
+            break
+    # print(selected_instruments)
+    for i, (custom_name, _) in enumerate(custom_ingredients):
+        if custom_name.strip().lower() == name_brand.strip().lower():
+            del custom_ingredients[i]
+            break
+
+    update_analyze_button()
+
 def add_selected_instrument(instrument):
     itemid, name_brand = instrument
     selected_instruments.append((itemid, name_brand))
     label = ctk.CTkLabel(frame_selected, text=name_brand, width=200, height=30, anchor="center", font=("Helvetica", 12))
     label.pack(padx=5, pady=5, side=tk.TOP, anchor="w")
+    label.bind("<Button-1>", lambda event: remove_instrument_by_name(name_brand, label))
+
     update_analyze_button()
 
 #функция добавления состава
@@ -119,7 +154,9 @@ def open_add_ingredient_window():
             comp = comp_entry.get().strip()
             if name and comp:
                 custom_ingredients.append((name, comp))
-                ctk.CTkLabel(frame_selected, text=name, font=("Helvetica", 12), text_color="black").pack(padx=5, pady=5, anchor="w")
+                label2 = (ctk.CTkLabel(frame_selected, text=name, font=("Helvetica", 12), text_color="black"))
+                label2.pack(padx=5, pady=5, anchor="w")
+                label2.bind("<Button-1>", lambda event: remove_instrument_by_name(name, label2))
         #print(custom_ingredients)
         update_analyze_button()
         add_window.destroy()
@@ -161,6 +198,14 @@ def open_survey_window():
 
     sensitive_skin = tk.BooleanVar()
     tk.Checkbutton(survey_win, text="Чувствительная",font=("Helvetica", 20), variable=sensitive_skin).pack(anchor="w", padx=40)
+
+    #Возраст
+    tk.Label(survey_win, text="Возраст:", font=("Helvetica", 20, "bold")).pack(anchor="w", padx=20, pady=(10, 0))
+    age_var = tk.StringVar(value="")
+    age_var.set(None)
+    for option in ["Подростковая", "Молодая", "Зрелая"]:
+        tk.Radiobutton(survey_win, text=option, font=("Helvetica", 20), variable=age_var, value=option).pack(anchor="w",
+                                                                                                             padx=40)
 
     # Склонность
     tk.Label(survey_win, text="Склонность к:", font=("Helvetica", 20, "bold")).pack(anchor="w", padx=20, pady=(10, 0))
@@ -237,6 +282,7 @@ def open_survey_window():
     def save_survey():
         user_survey_data["skin_type"] = skin_type.get()
         user_survey_data["sensitive"] = sensitive_skin.get()
+        user_survey_data["age"] = age_var.get()
         user_survey_data["tendencies"] = [label for label, var in tendencies.items() if var.get()]
         user_survey_data["had_procedure"] = procedure_answer.get()
         user_survey_data["procedure_types"] = {
@@ -271,21 +317,75 @@ def update_analyze_button():
         analyze_button.configure(state=tk.DISABLED)
         validation_label.configure(text="Выберите минимум два средства для анализа", text_color="red")
 
+def init_db():
+    with sqlite3.connect(db_user_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS survey (
+                id INTEGER PRIMARY KEY,
+                data TEXT
+            )
+        """)
+        conn.commit()
+
+def save_survey_to_db(data):
+    with sqlite3.connect(db_user_path) as conn:
+        cursor = conn.cursor()
+        json_data = json.dumps(data, ensure_ascii=False)
+        cursor.execute("DELETE FROM survey")  # Перезаписываем, т.к. один пользователь
+        cursor.execute("INSERT INTO survey (data) VALUES (?)", (json_data,))
+        conn.commit()
+
+def load_survey_from_db():
+    if not os.path.exists(db_user_path):
+        return None
+    with sqlite3.connect(db_user_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT data FROM survey ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        return json.loads(row[0]) if row else None
+
+def is_survey_meaningful(data):
+    # Проверяем, есть ли значимые пользовательские данные
+    return any([
+        data.get("skin_type"),
+        data.get("tendencies"),
+        data.get("had_procedure") == "Да",
+        data.get("has_allergy") == "Да",
+        data.get("weather"),
+        data.get("makeup") not in ("", "None", None),
+        data.get("age")
+    ])
 
 def analyze():
+    global user_survey_data
+    global selected_instruments
+
     collect_additional_info()
+
+    if is_survey_meaningful(user_survey_data):  # если пользователь заполнил форму
+        init_db()
+        save_survey_to_db(user_survey_data)
+    else:
+        loaded_data = load_survey_from_db()
+        if loaded_data:
+            user_survey_data = loaded_data
+        else:
+            user_survey_data = {}
+    # print(user_survey_data)
     selected_widgets = frame_selected.winfo_children()
     if len(selected_widgets) < 2:
         messagebox.showwarning("Ошибка", "Не выбрано достаточно средств для анализа.")
         return
 
+    allergy_warnings = []
     if "allergy_components" in user_survey_data and user_survey_data["allergy_components"]:
         allergy_components = [comp.strip() for comp in user_survey_data["allergy_components"].split(",") if
                               comp.strip()]
 
         if allergy_components:
             allergy_warnings = find_allergy(selected_instruments, custom_ingredients, allergy_components)
-
+    print("main", selected_instruments)
     # Вызов основной функции анализа с текущими данными
     pairwise_comparison_results, user_comparison_results, banned_results = run_analysis(selected_instruments, custom_ingredients, user_survey_data)
     show_pairwise_matrix(pairwise_comparison_results, user_comparison_results, banned_results, allergy_warnings)
@@ -346,13 +446,14 @@ def show_pairwise_matrix(pairwise_results, user_results, banned_results, allergy
                 messagebox.showinfo(name, "Нет дополнительной информации")
                 return
             sections = {"-1": [], "0": [], "1": []}
-            for res, info in zip(result_vals, info_vals):
-                if res in sections:
-                    parts = info.split(",", 1)  # Убираем префикс
-                    if len(parts) == 2:
-                        sections[res].append(parts[1].strip())
-                    else:
-                        sections[res].append(info.strip())
+
+            for info in info_vals:
+                parts = info.split(",", 1)
+                if len(parts) == 2:
+                    prefix = parts[0].strip()
+                    text = parts[1].strip()
+                    if prefix in sections:
+                        sections[prefix].append(text)
 
             if sections["-1"]:
                 text_parts.append("Минусы:\n" + "\n".join(f"- {t}" for t in sections["-1"]))
